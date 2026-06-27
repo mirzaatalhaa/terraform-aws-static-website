@@ -2,9 +2,13 @@
 
 > A Terraform module that deploys a secure, production-ready static website on AWS using Amazon S3 and Amazon CloudFront — compatible with any framework that produces a static build output.
 
+<div align="center">
+
 [![Terraform Registry](https://img.shields.io/badge/Terraform-Registry-7B42BC?logo=terraform)](https://registry.terraform.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Terraform Version](https://img.shields.io/badge/terraform-%3E%3D1.3.0-blue)](https://www.terraform.io/downloads)
+[![Terraform Version](https://img.shields.io/badge/terraform-%3E%3D1.5.0-blue)](https://www.terraform.io/downloads)
+
+</div>
 
 ---
 
