@@ -525,4 +525,3 @@ Open a Pull Request against the `main` branch. Describe what the change does, wh
 ## License
 
 MIT — see [LICENSE](./LICENSE) for details.
-```
