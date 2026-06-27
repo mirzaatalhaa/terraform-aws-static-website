@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://registry.terraform.io"><img src="https://img.shields.io/badge/Terraform-Registry-7B42BC?logo=terraform" alt="Terraform Registry"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <a href="https://www.terraform.io/downloads"><img src="https://img.shields.io/badge/terraform-%3E%3D1.3.0-blue" alt="Terraform Version"></a>
+  <a href="https://www.terraform.io/downloads"><img src="https://img.shields.io/badge/terraform-%3E%3D1.5.0-blue" alt="Terraform Version"></a>
 </p>
 
 ---
