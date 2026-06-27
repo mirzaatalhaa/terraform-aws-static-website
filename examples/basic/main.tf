@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 module "website" {
-  source = "../.."
+  source = "mirzaatalhaa/static-website/aws"
 
   bucket_name  = "my-react-site-demo"
   project_name = "React Demo"
