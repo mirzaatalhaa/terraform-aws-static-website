@@ -14,12 +14,6 @@ variable "default_root_object" {
   default     = "index.html"
 }
 
-variable "price_class" {
-  description = "CloudFront price class."
-  type        = string
-  default     = "PriceClass_100"
-}
-
 variable "enable_ipv6" {
   description = "Enable IPv6 for the CloudFront distribution."
   type        = bool

@@ -262,7 +262,7 @@ This module demonstrates the following Terraform patterns and concepts. If you a
 
 | Name | Version |
 |---|---|
-| [terraform](https://www.terraform.io/downloads) | >= 1.3.0 |
+| [terraform](https://www.terraform.io/downloads) | >= 1.5.0 |
 | [aws](https://registry.terraform.io/providers/hashicorp/aws/latest) | >= 5.0.0 |
 
 ---
