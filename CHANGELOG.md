@@ -25,3 +25,12 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - Example configuration under `examples/basic`.
 - Comprehensive README documentation.
 - MIT License.
+
+## [1.1.0] - 2026-07-02
+
+### Added
+- Optional custom domain support using CloudFront aliases.
+- Support for existing ACM certificates.
+- Automatic switching between the default CloudFront certificate and ACM certificates.
+- Input validation for custom domain configuration.
+- New `examples/custom-domain` example.

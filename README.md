@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://registry.terraform.io"><img src="https://img.shields.io/badge/Terraform-Registry-7B42BC?logo=terraform" alt="Terraform Registry"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <a href="https://www.terraform.io/downloads"><img src="https://img.shields.io/badge/terraform-%3E%3D1.5.0-blue" alt="Terraform Version"></a>
+  <a href="https://www.terraform.io/downloads"><img src="https://img.shields.io/badge/terraform-%3E%3D1.3.0-blue" alt="Terraform Version"></a>
 </p>
 
 ---
@@ -34,6 +34,8 @@ This module follows [Terraform Registry best practices](https://developer.hashic
 | 🌐 **CloudFront Distribution** | Global CDN with edge caching and low-latency delivery |
 | 🔐 **Origin Access Control (OAC)** | Modern AWS-recommended method for restricting S3 access to CloudFront only |
 | 🔒 **HTTPS by Default** | HTTP requests are redirected to HTTPS at the CloudFront level |
+| 🌐 **Custom Domain Support** | Optionally attach one or more custom domain aliases to the CloudFront distribution |
+| 🔑 **ACM Certificate Integration** | Bring your own ACM certificate for TLS on custom domains; SNI and TLSv1.2_2021 enforced |
 | ↩️ **SPA / Client-Side Routing Support** | Custom error responses remap S3 404/403 errors to `index.html` so the browser router takes over |
 | 🧩 **Framework Agnostic** | Works with any framework that emits a static build: React, Vue, Angular, Svelte, Next.js (static export), Astro, Vite, plain HTML, and more |
 | ⚡ **Optimized Caching** | CloudFront caching behaviours are tuned for static asset delivery |
@@ -53,7 +55,7 @@ This module follows [Terraform Registry best practices](https://developer.hashic
 
 ```
                           ┌─────────────────────────────────┐
-                          │            Internet             │
+                          │            Internet              │
                           └────────────────┬────────────────┘
                                            │ HTTPS
                                            ▼
@@ -258,13 +260,15 @@ This module demonstrates the following Terraform patterns and concepts. If you a
 
 **Provider Configuration** — The AWS provider requires a `region` to be set. This module accepts the provider from the root configuration via provider inheritance, following the pattern recommended for child modules.
 
+**Input Validation** — Terraform variable `validation` blocks allow modules to enforce constraints and surface meaningful errors before any API calls are made. This module uses a validation rule to ensure that `aliases` cannot be set without a corresponding `certificate_arn`, catching the misconfiguration at `terraform plan` time rather than during a CloudFront deployment failure minutes later.
+
 ---
 
 ## Requirements
 
 | Name | Version |
 |---|---|
-| [terraform](https://www.terraform.io/downloads) | >= 1.5.0 |
+| [terraform](https://www.terraform.io/downloads) | >= 1.3.0 |
 | [aws](https://registry.terraform.io/providers/hashicorp/aws/latest) | >= 5.0.0 |
 
 ---
@@ -283,8 +287,10 @@ This module demonstrates the following Terraform patterns and concepts. If you a
 |---|---|---|---|---|
 | `bucket_name` | The name of the S3 bucket to create. Must be globally unique across all AWS accounts. | `string` | n/a | **yes** |
 | `project_name` | A short identifier for the project. Used to name the CloudFront OAC and as a prefix for resource descriptions. | `string` | n/a | **yes** |
-| `default_root_object` | The object CloudFront returns when the root URL is requested. Should match your React build entry point. | `string` | `"index.html"` | no |
+| `default_root_object` | The object CloudFront returns when the root URL is requested. Should match your framework's build entry point. | `string` | `"index.html"` | no |
 | `enable_ipv6` | Whether to enable IPv6 (dual-stack) on the CloudFront distribution. | `bool` | `true` | no |
+| `aliases` | One or more custom domain names (CNAMEs) to associate with the CloudFront distribution. Requires `certificate_arn` to be set. If omitted, the distribution is accessible via the default `*.cloudfront.net` domain only. | `list(string)` | `[]` | no |
+| `certificate_arn` | The ARN of an ACM certificate to use for HTTPS on custom domains. The certificate must be issued in `us-east-1` regardless of the distribution's region. Required when `aliases` is set; ignored otherwise. | `string` | `null` | no |
 | `tags` | A map of tags to apply to all resources created by this module. Useful for cost allocation, environment labelling, and resource grouping. | `map(string)` | `{}` | no |
 
 ---
@@ -352,6 +358,38 @@ module "website" {
 }
 ```
 
+### With a custom domain
+
+To serve your site from a custom domain, provision or import an ACM certificate in `us-east-1` and pass its ARN along with your domain aliases. The module switches from the default CloudFront certificate to your ACM certificate automatically, and enforces SNI with a `TLSv1.2_2021` minimum protocol version.
+
+```hcl
+provider "aws" {
+  region = "us-east-1"
+}
+
+module "website" {
+  source = "<registry-placeholder>/terraform-aws-static-website"
+
+  bucket_name  = "my-app-prod-assets"
+  project_name = "my-app"
+
+  aliases         = ["www.example.com", "example.com"]
+  certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abc-def-ghi"
+
+  tags = {
+    Environment = "production"
+    Project     = "my-app"
+    ManagedBy   = "terraform"
+  }
+}
+
+output "website_url" {
+  value = "https://www.example.com"
+}
+```
+
+> **Note:** You must create a CNAME (or Route 53 alias) record pointing your domain to the `cloudfront_domain_name` output after `terraform apply` completes. The module does not manage DNS records. If you provide `aliases` without `certificate_arn`, Terraform will report a validation error immediately — before any infrastructure is created.
+
 ### Accessing outputs
 
 After running `terraform apply`, retrieve outputs to use in your deployment workflow:
@@ -374,26 +412,34 @@ aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
 
 ## Examples
 
-The `examples/basic/` directory contains a complete, runnable Terraform configuration that demonstrates how to consume this module from a root configuration.
+Two examples are provided under the `examples/` directory, each demonstrating a distinct deployment pattern.
 
 ```
 examples/
-└── basic/
-    ├── main.tf        # Module call with sample variable values
-    ├── outputs.tf     # Exposes module outputs at the root level
-    └── README.md      # Instructions for running the example
+├── basic/
+│   ├── main.tf        # Standard deployment via default *.cloudfront.net domain
+│   ├── outputs.tf     # Exposes module outputs at the root level
+│   └── README.md      # Instructions for running the example
+└── custom-domain/
+    ├── main.tf        # Deployment with custom domain aliases and ACM certificate
+    ├── outputs.tf     # Exposes cloudfront_domain_name for DNS configuration
+    └── README.md      # Pre-requisites and DNS setup instructions
 ```
 
-To run the example:
+**`examples/basic`** provisions a working CloudFront + S3 stack accessible via the default `*.cloudfront.net` domain. Use this as a starting point if you do not yet have a custom domain or ACM certificate.
+
+**`examples/custom-domain`** demonstrates the `aliases` and `certificate_arn` inputs. It assumes an ACM certificate already exists in `us-east-1` and shows how to wire it into the distribution. DNS configuration steps are documented in that example's README.
+
+To run either example:
 
 ```bash
-cd examples/basic
+cd examples/basic        # or examples/custom-domain
 terraform init
 terraform plan
 terraform apply
 ```
 
-This example provisions a working CloudFront + S3 stack using placeholder values. It is designed to be a starting point, not a production configuration. Review the variable values in `main.tf` before applying to your own AWS account.
+Review the variable values in `main.tf` before applying to your own AWS account.
 
 ---
 
@@ -407,10 +453,14 @@ terraform-aws-static-website/
 ├── README.md          # This file — module documentation
 ├── LICENSE            # MIT License
 ├── examples/
-│   └── basic/
-│       ├── main.tf    # Example root module consuming this module
-│       ├── outputs.tf # Example outputs
-│       └── README.md  # Example-specific usage instructions
+│   ├── basic/
+│   │   ├── main.tf    # Standard deployment using default CloudFront domain
+│   │   ├── outputs.tf # Example outputs
+│   │   └── README.md  # Usage instructions
+│   └── custom-domain/
+│       ├── main.tf    # Deployment with custom aliases and ACM certificate
+│       ├── outputs.tf # Outputs including cloudfront_domain_name for DNS setup
+│       └── README.md  # Pre-requisites and DNS configuration steps
 └── .gitignore         # Excludes .terraform/, tfstate files, and override files
 ```
 
@@ -420,7 +470,9 @@ terraform-aws-static-website/
 
 **`outputs.tf`** exports key attributes of the created resources. Outputs are how consumers get information back out of a module — such as the CloudFront domain to display or pass to a DNS record.
 
-**`examples/basic/`** is a self-contained Terraform configuration that consumes this module. It exists to demonstrate real-world usage and to make the module testable in CI.
+**`examples/basic/`** is a self-contained Terraform configuration that consumes this module using the default `*.cloudfront.net` domain. It exists to demonstrate standard usage and to make the module testable in CI.
+
+**`examples/custom-domain/`** demonstrates how to supply `aliases` and `certificate_arn` to serve the site from a custom domain with a user-managed ACM certificate.
 
 **`.gitignore`** excludes files that should never be committed to source control: the `.terraform/` provider cache directory, `terraform.tfstate` and `terraform.tfstate.backup`, and any `*.tfvars` files that might contain sensitive values.
 
@@ -456,8 +508,8 @@ The following features are planned for future module versions. Contributions are
 
 | Feature | Description |
 |---|---|
-| 🌐 **Custom Domain Support** | Allow consumers to provide a custom domain name for the CloudFront distribution |
-| 🔑 **ACM Certificate Integration** | Automatically provision or attach an ACM certificate for TLS on custom domains |
+| ~~🌐 **Custom Domain Support**~~ | ✅ Released — `aliases` variable now available |
+| ~~🔑 **ACM Certificate Integration**~~ | ✅ Released — `certificate_arn` variable now available |
 | 🗺️ **Route 53 Integration** | Optionally create a Route 53 alias record pointing to the CloudFront distribution |
 | 📋 **CloudFront Access Logging** | Enable access logging to an S3 bucket for traffic analysis and debugging |
 | 🛡️ **AWS WAF Integration** | Attach a Web ACL to the distribution to block malicious traffic patterns |
@@ -526,4 +578,26 @@ Open a Pull Request against the `main` branch. Describe what the change does, wh
 
 ## License
 
-MIT — see [LICENSE](./LICENSE) for details.
+```
+MIT License
+
+Copyright (c) 2024 terraform-aws-static-website contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

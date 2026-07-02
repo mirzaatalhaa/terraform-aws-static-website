@@ -25,3 +25,24 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "aliases" {
+  description = "Optional custom domain names for the CloudFront distribution."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = (
+      length(var.aliases) == 0 ||
+      var.certificate_arn != null
+    )
+
+    error_message = "certificate_arn must be provided when aliases are configured."
+  }
+}
+
+variable "certificate_arn" {
+  description = "ACM certificate ARN in us-east-1 for custom domains. Leave null to use the default CloudFront certificate."
+  type        = string
+  default     = null
+}

@@ -75,6 +75,7 @@ resource "aws_cloudfront_distribution" "this" {
   is_ipv6_enabled     = var.enable_ipv6
   comment             = var.project_name
   default_root_object = var.default_root_object
+  aliases             = var.aliases
 
   origin {
     domain_name              = aws_s3_bucket.this.bucket_regional_domain_name
@@ -106,8 +107,12 @@ resource "aws_cloudfront_distribution" "this" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn            = var.certificate_arn
+    cloudfront_default_certificate = var.certificate_arn == null
+    ssl_support_method             = var.certificate_arn != null ? "sni-only" : null
+    minimum_protocol_version       = var.certificate_arn != null ? "TLSv1.2_2021" : null
   }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
